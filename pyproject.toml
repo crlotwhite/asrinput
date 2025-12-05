@@ -1,10 +1,14 @@
 [project]
 name = "asrinput"
 version = "0.1.0"
-description = "Add your description here"
+description = "Real-time speech recognition tool with GUI for Korean/English"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "jupyter>=1.1.1",
-    "pyautogui>=0.9.54",
+    "faster-whisper>=1.0.0",
+    "customtkinter>=5.2.0",
+    "pynput>=1.7.0",
+    "sounddevice>=0.4.0",
+    "numpy>=1.26.0",
+    "pyperclip>=1.8.0",
 ]
