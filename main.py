@@ -311,10 +311,20 @@ class ASRApp(ctk.CTk):
         self.auto_input_var = ctk.BooleanVar(value=True)
         self.auto_input_check = ctk.CTkCheckBox(
             bottom_frame,
-            text="인식 후 자동 입력",
+            text="자동 입력",
             variable=self.auto_input_var
         )
         self.auto_input_check.grid(row=0, column=1, padx=10, pady=5, sticky="e")
+        
+        # Always on top checkbox
+        self.always_on_top_var = ctk.BooleanVar(value=False)
+        self.always_on_top_check = ctk.CTkCheckBox(
+            bottom_frame,
+            text="항상 위",
+            variable=self.always_on_top_var,
+            command=self._on_always_on_top_changed
+        )
+        self.always_on_top_check.grid(row=0, column=2, padx=10, pady=5, sticky="e")
     
     def _setup_ptt_listener(self):
         """Setup Push-to-Talk keyboard listener."""
@@ -367,6 +377,10 @@ class ASRApp(ctk.CTk):
             if name == selection:
                 self.recognizer.language = code
                 break
+    
+    def _on_always_on_top_changed(self):
+        """Handle always on top checkbox change."""
+        self.attributes("-topmost", self.always_on_top_var.get())
     
     def _on_toggle_changed(self):
         """Handle toggle switch state change."""
