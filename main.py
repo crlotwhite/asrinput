@@ -58,14 +58,31 @@ class TextInputSimulator:
 class AudioCapture:
     """Captures audio from microphone using sounddevice."""
     
-    def __init__(self, sample_rate: int = 16000, channels: int = 1):
+    def __init__(self, sample_rate: int = 16000, channels: int = 1, device: int | None = None):
         self.sample_rate = sample_rate
         self.channels = channels
+        self.device = device  # None = default device
         self.audio_queue: queue.Queue = queue.Queue()
         self.is_recording = False
         self.stream = None
         self._buffer: list[np.ndarray] = []
         self._lock = threading.Lock()
+    
+    @staticmethod
+    def get_input_devices() -> list[tuple[int, str]]:
+        """Get list of available input devices. Returns list of (index, name) tuples."""
+        devices = []
+        for i, dev in enumerate(sd.query_devices()):
+            if dev['max_input_channels'] > 0:
+                devices.append((i, dev['name']))
+        return devices
+    
+    def set_device(self, device: int | None) -> None:
+        """Set the input device. Closes existing stream if open."""
+        if self.stream:
+            self.stream.close()
+            self.stream = None
+        self.device = device
     
     def _audio_callback(self, indata, frames, time_info, status):
         """Callback for audio stream."""
@@ -83,7 +100,8 @@ class AudioCapture:
                 channels=self.channels,
                 dtype=np.float32,
                 callback=self._audio_callback,
-                blocksize=int(self.sample_rate * 0.1)  # 100ms blocks
+                blocksize=int(self.sample_rate * 0.1),  # 100ms blocks
+                device=self.device
             )
         self.is_recording = True
         self._buffer.clear()
@@ -203,6 +221,213 @@ class SpeechRecognizer:
                 os.unlink(temp_path)
             except Exception:
                 pass
+
+
+class SettingsWindow(ctk.CTkToplevel):
+    """Settings window for audio device selection and testing."""
+    
+    def __init__(self, parent, audio_capture: AudioCapture):
+        super().__init__(parent)
+        self.audio_capture = audio_capture
+        self.test_stream = None
+        self.is_testing = False
+        self._test_thread = None
+        
+        # Window setup
+        self.title("설정")
+        self.geometry("450x350")
+        self.minsize(400, 300)
+        self.resizable(False, False)
+        
+        # Make modal
+        self.transient(parent)
+        self.grab_set()
+        
+        # Setup UI
+        self._setup_ui()
+        
+        # Cleanup on close
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+    
+    def _setup_ui(self):
+        """Setup settings UI."""
+        self.grid_columnconfigure(0, weight=1)
+        
+        # Audio device section
+        device_frame = ctk.CTkFrame(self)
+        device_frame.grid(row=0, column=0, padx=15, pady=15, sticky="ew")
+        device_frame.grid_columnconfigure(1, weight=1)
+        
+        # Section title
+        title_label = ctk.CTkLabel(
+            device_frame,
+            text="🎤 음성 입력 장치",
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        title_label.grid(row=0, column=0, columnspan=2, padx=10, pady=(10, 15), sticky="w")
+        
+        # Device selection
+        device_label = ctk.CTkLabel(device_frame, text="장치 선택:")
+        device_label.grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        
+        # Get available devices
+        self.devices = AudioCapture.get_input_devices()
+        device_names = ["기본 장치 (Default)"] + [name for _, name in self.devices]
+        
+        self.device_var = ctk.StringVar(value="기본 장치 (Default)")
+        # Set current device if configured
+        if self.audio_capture.device is not None:
+            for idx, name in self.devices:
+                if idx == self.audio_capture.device:
+                    self.device_var.set(name)
+                    break
+        
+        self.device_menu = ctk.CTkOptionMenu(
+            device_frame,
+            variable=self.device_var,
+            values=device_names,
+            width=280
+        )
+        self.device_menu.grid(row=1, column=1, padx=10, pady=5, sticky="ew")
+        
+        # Refresh button
+        refresh_btn = ctk.CTkButton(
+            device_frame,
+            text="🔄",
+            width=40,
+            command=self._refresh_devices
+        )
+        refresh_btn.grid(row=1, column=2, padx=(0, 10), pady=5)
+        
+        # Test section
+        test_frame = ctk.CTkFrame(self)
+        test_frame.grid(row=1, column=0, padx=15, pady=10, sticky="ew")
+        test_frame.grid_columnconfigure(0, weight=1)
+        
+        test_title = ctk.CTkLabel(
+            test_frame,
+            text="🔊 마이크 테스트",
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        test_title.grid(row=0, column=0, columnspan=2, padx=10, pady=(10, 10), sticky="w")
+        
+        # Volume meter (progress bar)
+        self.volume_bar = ctk.CTkProgressBar(test_frame, width=300)
+        self.volume_bar.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
+        self.volume_bar.set(0)
+        
+        # Test button
+        self.test_btn = ctk.CTkButton(
+            test_frame,
+            text="테스트 시작",
+            command=self._toggle_test
+        )
+        self.test_btn.grid(row=1, column=1, padx=10, pady=10)
+        
+        # Status label
+        self.test_status = ctk.CTkLabel(
+            test_frame,
+            text="테스트 버튼을 눌러 마이크를 확인하세요",
+            font=ctk.CTkFont(size=12)
+        )
+        self.test_status.grid(row=2, column=0, columnspan=2, padx=10, pady=(0, 10))
+        
+        # Buttons frame
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.grid(row=2, column=0, padx=15, pady=15, sticky="e")
+        
+        # Apply button
+        apply_btn = ctk.CTkButton(
+            btn_frame,
+            text="적용",
+            command=self._apply_settings
+        )
+        apply_btn.grid(row=0, column=0, padx=5)
+        
+        # Cancel button
+        cancel_btn = ctk.CTkButton(
+            btn_frame,
+            text="취소",
+            fg_color="gray",
+            command=self._on_close
+        )
+        cancel_btn.grid(row=0, column=1, padx=5)
+    
+    def _refresh_devices(self):
+        """Refresh the device list."""
+        self.devices = AudioCapture.get_input_devices()
+        device_names = ["기본 장치 (Default)"] + [name for _, name in self.devices]
+        self.device_menu.configure(values=device_names)
+    
+    def _get_selected_device_index(self) -> int | None:
+        """Get the index of the selected device."""
+        selected = self.device_var.get()
+        if selected == "기본 장치 (Default)":
+            return None
+        for idx, name in self.devices:
+            if name == selected:
+                return idx
+        return None
+    
+    def _toggle_test(self):
+        """Toggle microphone test."""
+        if self.is_testing:
+            self._stop_test()
+        else:
+            self._start_test()
+    
+    def _start_test(self):
+        """Start microphone test."""
+        self.is_testing = True
+        self.test_btn.configure(text="테스트 중지")
+        self.test_status.configure(text="마이크에 말해보세요...")
+        
+        device_idx = self._get_selected_device_index()
+        
+        def audio_callback(indata, frames, time_info, status):
+            if self.is_testing:
+                # Calculate RMS volume
+                volume = np.sqrt(np.mean(indata**2))
+                # Scale to 0-1 range (with some amplification)
+                level = min(1.0, volume * 10)
+                self.after(0, lambda: self.volume_bar.set(level))
+        
+        try:
+            self.test_stream = sd.InputStream(
+                samplerate=16000,
+                channels=1,
+                dtype=np.float32,
+                callback=audio_callback,
+                device=device_idx
+            )
+            self.test_stream.start()
+        except Exception as e:
+            self.test_status.configure(text=f"❌ 오류: {str(e)[:30]}")
+            self._stop_test()
+    
+    def _stop_test(self):
+        """Stop microphone test."""
+        self.is_testing = False
+        self.test_btn.configure(text="테스트 시작")
+        self.test_status.configure(text="테스트 버튼을 눌러 마이크를 확인하세요")
+        self.volume_bar.set(0)
+        
+        if self.test_stream:
+            self.test_stream.stop()
+            self.test_stream.close()
+            self.test_stream = None
+    
+    def _apply_settings(self):
+        """Apply settings and close."""
+        device_idx = self._get_selected_device_index()
+        self.audio_capture.set_device(device_idx)
+        self._on_close()
+    
+    def _on_close(self):
+        """Cleanup and close window."""
+        self._stop_test()
+        self.grab_release()
+        self.destroy()
 
 
 class ASRApp(ctk.CTk):
@@ -325,6 +550,15 @@ class ASRApp(ctk.CTk):
             command=self._on_always_on_top_changed
         )
         self.always_on_top_check.grid(row=0, column=2, padx=10, pady=5, sticky="e")
+        
+        # Settings button
+        self.settings_btn = ctk.CTkButton(
+            bottom_frame,
+            text="⚙️ 설정",
+            width=70,
+            command=self._open_settings
+        )
+        self.settings_btn.grid(row=0, column=3, padx=10, pady=5, sticky="e")
     
     def _setup_ptt_listener(self):
         """Setup Push-to-Talk keyboard listener."""
@@ -381,6 +615,10 @@ class ASRApp(ctk.CTk):
     def _on_always_on_top_changed(self):
         """Handle always on top checkbox change."""
         self.attributes("-topmost", self.always_on_top_var.get())
+    
+    def _open_settings(self):
+        """Open settings window."""
+        SettingsWindow(self, self.audio_capture)
     
     def _on_toggle_changed(self):
         """Handle toggle switch state change."""
