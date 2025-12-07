@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 import sounddevice as sd
 import customtkinter as ctk
@@ -12,17 +14,25 @@ DEFAULT_DEVICE_LABEL = "기본 장치 (Default)"
 class SettingsWindow(ctk.CTkToplevel):
     """Settings window for choosing and testing the input device."""
 
-    def __init__(self, parent, audio_capture: AudioCapture):
+    def __init__(
+        self,
+        parent,
+        audio_capture: AudioCapture,
+        use_clipboard: bool,
+        on_clipboard_change: Callable[[bool], None],
+    ):
         super().__init__(parent)
         self.audio_capture = audio_capture
         self.test_stream: sd.InputStream | None = None
         self.is_testing = False
         self.devices: list[tuple[int, str]] = []
+        self.on_clipboard_change = on_clipboard_change
+        self.use_clipboard_var = ctk.BooleanVar(value=use_clipboard)
 
         # window setup
         self.title("설정")
-        self.geometry("460x360")
-        self.minsize(420, 320)
+        self.geometry("460x480")
+        self.minsize(420, 380)
         self.resizable(False, False)
         self.transient(parent)
         self.grab_set()
@@ -92,9 +102,35 @@ class SettingsWindow(ctk.CTkToplevel):
         )
         self.test_status.grid(row=2, column=0, columnspan=2, padx=10, pady=(2, 10))
 
+        # --- Input / automation section ---
+        input_frame = ctk.CTkFrame(self)
+        input_frame.grid(row=2, column=0, padx=16, pady=12, sticky="ew")
+        input_frame.grid_columnconfigure(0, weight=1)
+
+        input_title = ctk.CTkLabel(
+            input_frame,
+            text="입력 설정",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        )
+        input_title.grid(row=0, column=0, padx=10, pady=(10, 6), sticky="w")
+
+        self.clipboard_switch = ctk.CTkSwitch(
+            input_frame,
+            text="클립보드 자동 복사/붙여넣기",
+            variable=self.use_clipboard_var,
+        )
+        self.clipboard_switch.grid(row=1, column=0, padx=10, pady=(0, 6), sticky="w")
+
+        clipboard_desc = ctk.CTkLabel(
+            input_frame,
+            text="꺼짐(기본): 클립보드를 건드리지 않고 직접 타이핑합니다.",
+            font=ctk.CTkFont(size=11),
+        )
+        clipboard_desc.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="w")
+
         # --- Buttons ---
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.grid(row=2, column=0, padx=16, pady=16, sticky="e")
+        btn_frame.grid(row=3, column=0, padx=16, pady=16, sticky="e")
 
         apply_btn = ctk.CTkButton(btn_frame, text="적용", command=self._apply_settings, width=80)
         apply_btn.grid(row=0, column=0, padx=6)
@@ -174,6 +210,7 @@ class SettingsWindow(ctk.CTkToplevel):
     def _apply_settings(self) -> None:
         device_idx = self._selected_device_index()
         self.audio_capture.set_device(device_idx)
+        self.on_clipboard_change(self.use_clipboard_var.get())
         self._on_close()
 
     def _on_close(self) -> None:

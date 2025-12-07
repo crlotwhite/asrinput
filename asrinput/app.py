@@ -31,7 +31,7 @@ class ASRApp(ctk.CTk):
         # components
         self.audio_capture = AudioCapture()
         self.recognizer = SpeechRecognizer(model_size="small", device="cpu")
-        self.text_simulator = TextInputSimulator()
+        self.text_simulator = TextInputSimulator(use_clipboard=False)
 
         # state
         self.is_toggle_active = False
@@ -167,7 +167,12 @@ class ASRApp(ctk.CTk):
         self.attributes("-topmost", self.always_on_top_var.get())
 
     def _open_settings(self) -> None:
-        SettingsWindow(self, self.audio_capture)
+        SettingsWindow(
+            self,
+            self.audio_capture,
+            use_clipboard=self.text_simulator.use_clipboard,
+            on_clipboard_change=self._set_clipboard_usage,
+        )
 
     def _on_toggle_changed(self) -> None:
         if self.toggle_var.get():
@@ -249,6 +254,11 @@ class ASRApp(ctk.CTk):
         self._append_text(f"[인식] {text}")
         if self.auto_input_var.get():
             self.text_simulator.type_text(text)
+
+    def _set_clipboard_usage(self, enabled: bool) -> None:
+        """Toggle clipboard-based paste behavior for simulated input."""
+
+        self.text_simulator.set_use_clipboard(enabled)
 
     # ---------- Cleanup ----------
     def _on_close(self) -> None:
