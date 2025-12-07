@@ -13,7 +13,4 @@ dependencies = [
     "pyperclip>=1.8.0",
 ]
 
-[dependency-groups]
-dev = [
-    "pyinstaller>=6.17.0",
-]
+

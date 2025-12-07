@@ -1,63 +1,39 @@
-# ASRInput Build Makefile
-# Requires: uv, pyinstaller
+# ASRInput Makefile (uv/uvx workflow)
+# Requires: uv (https://docs.astral.sh/uv/)
 
-# Variables
-PYTHON := uv run python
-PIP := uv pip
+UV := uv
+PYTHON := $(UV) run python
 APP_NAME := asrinput
 MAIN_FILE := main.py
-DIST_DIR := dist
-BUILD_DIR := build
-SPEC_FILE := $(APP_NAME).spec
 
-# PyInstaller options
-PYINSTALLER := uv run pyinstaller
-PYINSTALLER_OPTS := --onefile --windowed --name $(APP_NAME)
-PYINSTALLER_OPTS += --add-data "$(shell uv run python -c "import customtkinter; print(customtkinter.__path__[0])");customtkinter"
+.PHONY: run run-uvx deps clean help all
 
-# Default target
-.PHONY: all
-all: build
+# Default target runs the app using the synced virtualenv
+all: run
 
-# Install dependencies
-.PHONY: deps
+# Install project dependencies into the managed .venv
 deps:
-	uv sync
-	uv add pyinstaller
+	$(UV) sync
 
-# Build executable
-.PHONY: build
-build: deps
-	$(PYINSTALLER) $(PYINSTALLER_OPTS) $(MAIN_FILE)
-	@echo "Build complete: $(DIST_DIR)/$(APP_NAME).exe"
-
-# Build with console (for debugging)
-.PHONY: build-debug
-build-debug: deps
-	uv run pyinstaller --onefile --console --name $(APP_NAME)-debug $(MAIN_FILE)
-	@echo "Debug build complete: $(DIST_DIR)/$(APP_NAME)-debug.exe"
-
-# Clean build artifacts
-.PHONY: clean
-clean:
-	rm -rf $(BUILD_DIR) $(DIST_DIR) $(SPEC_FILE) *.spec __pycache__
-	@echo "Cleaned build artifacts"
-
-# Run the application
-.PHONY: run
-run:
+# Run the application using the local environment
+run: deps
 	$(PYTHON) $(MAIN_FILE)
 
-# Show help
-.PHONY: help
+# Run without a local venv using uvx (ephemeral env)
+run-uvx:
+	uvx --from . python $(MAIN_FILE)
+
+# Remove caches and old build artifacts
+clean:
+	- rm -rf __pycache__ .pytest_cache .ruff_cache .mypy_cache
+	- rm -rf dist build *.spec
+
+# Display available targets
 help:
-	@echo "ASRInput Build System"
-	@echo ""
+	@echo "ASRInput (uv/uvx)"
 	@echo "Targets:"
-	@echo "  all         - Build the executable (default)"
-	@echo "  build       - Build the executable"
-	@echo "  build-debug - Build with console for debugging"
-	@echo "  deps        - Install dependencies"
-	@echo "  clean       - Remove build artifacts"
-	@echo "  run         - Run the application"
-	@echo "  help        - Show this help message"
+	@echo "  run        - Sync deps (if needed) and run the app"
+	@echo "  run-uvx    - Run via uvx in an ephemeral environment"
+	@echo "  deps       - Sync project dependencies"
+	@echo "  clean      - Remove caches and build artifacts"
+	@echo "  help       - Show this help message"
