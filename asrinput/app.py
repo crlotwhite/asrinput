@@ -4,6 +4,7 @@ import threading
 import time
 
 import customtkinter as ctk
+from tkinter import filedialog, messagebox
 from pynput import keyboard
 
 from .audio import AudioCapture
@@ -113,13 +114,21 @@ class ASRApp(ctk.CTk):
         )
         self.always_on_top_check.grid(row=0, column=2, padx=8, pady=6, sticky="e")
 
+        self.export_btn = ctk.CTkButton(
+            bottom_frame,
+            text="TXT 저장",
+            width=90,
+            command=self._export_text,
+        )
+        self.export_btn.grid(row=0, column=3, padx=8, pady=6, sticky="e")
+
         self.settings_btn = ctk.CTkButton(
             bottom_frame,
             text="설정",
             width=80,
             command=self._open_settings,
         )
-        self.settings_btn.grid(row=0, column=3, padx=10, pady=6, sticky="e")
+        self.settings_btn.grid(row=0, column=4, padx=10, pady=6, sticky="e")
 
     # ---------- Model loading ----------
     def _start_model_loading(self) -> None:
@@ -259,6 +268,29 @@ class ASRApp(ctk.CTk):
         """Toggle clipboard-based paste behavior for simulated input."""
 
         self.text_simulator.set_use_clipboard(enabled)
+
+    def _export_text(self) -> None:
+        """Save recognized text contents to a txt file."""
+
+        content = self.text_display.get("1.0", "end-1c")
+        if not content.strip():
+            messagebox.showinfo("내보내기", "저장할 내용이 없습니다.")
+            return
+
+        file_path = filedialog.asksaveasfilename(
+            title="텍스트 저장",
+            defaultextension=".txt",
+            filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")],
+        )
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            messagebox.showinfo("완료", f"저장되었습니다:\n{file_path}")
+        except Exception as exc:  # noqa: BLE001 - show to user
+            messagebox.showerror("오류", f"저장 중 오류 발생: {exc}")
 
     # ---------- Cleanup ----------
     def _on_close(self) -> None:
