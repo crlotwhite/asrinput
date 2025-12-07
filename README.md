@@ -5,17 +5,10 @@ ASRInput - real-time speech recognition (Korean/English) using Faster-Whisper wi
 - [uv](https://docs.astral.sh/uv/) (provides `uv` and `uvx`)
 - Audio input device and basic desktop UI support
 
-## Run locally (managed venv)
+## Run this tool via `uvx`
 ```sh
-uv sync
-uv run python main.py
+uvx --from git+https://github.com/crlotwhite/asrinput asrinput
 ```
-
-## Run ad-hoc with uvx (no local venv)
-```sh
-uvx --from . python main.py
-```
-`uvx` will resolve dependencies in an ephemeral environment and launch the app.
 
 ## Make targets
 - `make run` (default): sync deps if needed, then run the app
