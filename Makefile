@@ -28,6 +28,12 @@ clean:
 	- rm -rf __pycache__ .pytest_cache .ruff_cache .mypy_cache
 	- rm -rf dist build *.spec
 
+# Lint the codebase
+lint:
+	uv run ruff check .
+	uv run ruff format .
+	uv run mypy .
+
 # Display available targets
 help:
 	@echo "ASRInput (uv/uvx)"

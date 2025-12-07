@@ -8,3 +8,17 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Testing caches
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.coverage
+*.py,cover
+.ruff_cache/
+.mypy_cache/
