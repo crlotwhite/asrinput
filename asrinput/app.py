@@ -86,7 +86,6 @@ class ASRApp(ctk.CTk):
         self.text_display = ctk.CTkTextbox(self, font=ctk.CTkFont(size=13), wrap="word")
         self.text_display.grid(row=1, column=0, padx=10, pady=6, sticky="nsew")
         self.text_display.insert("1.0", "인식된 텍스트가 여기에 표시됩니다.\n")
-        self.text_display.configure(state="disabled")
 
         bottom_frame = ctk.CTkFrame(self)
         bottom_frame.grid(row=2, column=0, padx=10, pady=(6, 10), sticky="ew")
@@ -254,10 +253,8 @@ class ASRApp(ctk.CTk):
 
     # ---------- Text handling ----------
     def _append_text(self, text: str) -> None:
-        self.text_display.configure(state="normal")
         self.text_display.insert("end", f"{text}\n")
         self.text_display.see("end")
-        self.text_display.configure(state="disabled")
 
     def _on_text_recognized(self, text: str) -> None:
         self._append_text(f"[인식] {text}")
